@@ -7,12 +7,13 @@ import shutil
 from dipy.core.gradients import gradient_table
 from dipy.data import get_sphere
 from dipy.direction import ProbabilisticDirectionGetter
+
 from dipy.io.gradients import read_bvals_bvecs
-from dipy.io.stateful_tractogram import Space, StatefulTractogram
-from dipy.io.streamline import save_trk
+from dipy.reconst.dsi import DiffusionSpectrumModel
+from dipy.reconst.dti import TensorModel, fractional_anisotropy
+
 from dipy.reconst.csdeconv import (ConstrainedSphericalDeconvModel,
                                    auto_response_ssst)
-from dipy.reconst.dti import TensorModel, fractional_anisotropy
 from dipy.segment.mask import median_otsu
 from dipy.tracking import utils
 from dipy.tracking.local_tracking import LocalTracking
@@ -30,6 +31,7 @@ def run(context):
     analysis_data = context.fetch_analysis_data()
     settings = analysis_data['settings']
     postprocessing = settings['postprocessing']
+    dataset = settings['dataset']
 
     hcpl_dwi_file_handle = context.get_files('input', modality='HARDI')[0]
     hcpl_dwi_file_path = hcpl_dwi_file_handle.download('/root/')
@@ -54,7 +56,6 @@ def run(context):
         'input', reg_expression='.*prep.inject.nii.gz')[0]
     inject_file_path = inject_file_handle.download('/root/')
 
-
     VUMC_ROIs_file_handle = context.get_files(
         'input', reg_expression='.*VUMC_ROIs.nii.gz')[0]
     VUMC_ROIs_file_path = inject_file_handle.download('/root/')
@@ -67,11 +68,21 @@ def run(context):
     # | |__| || |_| |      | |    #
     # |_____/_____|_|      |_|    #
     #                             #
-    # dipy.org/documentation      #
     ###############################
-    #       IronTract Team        #
-    #      TrackyMcTrackface      #
-    ###############################
+
+    ########################################################################################
+    #  _______             _          __  __   _______             _     __                #
+    # |__   __|           | |        |  \/  | |__   __|           | |   / _|               #
+    #    | |_ __ __ _  ___| | ___   _| \  / | ___| |_ __ __ _  ___| | _| |_ __ _  ___ ___  #
+    #    | | '__/ _` |/ __| |/ / | | | |\/| |/ __| | '__/ _` |/ __| |/ /  _/ _` |/ __/ _ \ #
+    #    | | | | (_| | (__|   <| |_| | |  | | (__| | | | (_| | (__|   <| || (_| | (_|  __/ #
+    #    |_|_|  \__,_|\___|_|\_\\__, |_|  |_|\___|_|_|  \__,_|\___|_|\_\_| \__,_|\___\___| #
+    #                            __/ |                                                     #
+    #                           |___/                                                      #
+    #                                                                                      #
+    #                                                                                      #
+    #                               IronTract Team                                         #
+    ########################################################################################
 
     #################
     # Load the data #
@@ -94,32 +105,50 @@ def run(context):
     tenmodel = TensorModel(gtab)
     tenfit = tenmodel.fit(dwi_img.get_data(), mask=brain_mask)
     FA = fractional_anisotropy(tenfit.evals)
-    # fa_file_path = "/root/fa.nii.gz"
-    # nib.Nifti1Image(FA,dwi_img.affine).to_filename(fa_file_path)
+    stopping_criterion = ThresholdStoppingCriterion(FA, 0.2)
 
-    ################################################
-    # Compute Fiber Orientation Distribution (CSD) #
-    ################################################
-    context.set_progress(message='Processing voxel-wise FOD estimation.')
-    response, _ = auto_response_ssst(gtab, dwi_img.get_data(), 
-                                     roi_radii=10, fa_thr=0.7)
-    csd_model = ConstrainedSphericalDeconvModel(gtab, response, sh_order=6)
-    csd_fit = csd_model.fit(dwi_img.get_data(), mask=brain_mask)
-    # fod_file_path = "/root/fod.nii.gz"
-    # nib.Nifti1Image(csd_fit.shm_coeff,dwi_img.affine).to_filename(fod_file_path)
+    sphere = get_sphere("repulsion724")
+    seed_mask_img = nib.load(inject_file_path)
+    affine = seed_mask_img.affine
+    seeds = utils.random_seeds_from_mask(seed_mask_img.get_data(),
+                                         affine,
+                                         seed_count_per_voxel=True
+                                         seeds_count=5000)
+
+    if dataset == "HCPL":
+        ################################################
+        # Compute Fiber Orientation Distribution (CSD) #
+        ################################################
+        context.set_progress(message='Processing voxel-wise FOD estimation.')
+
+        response, _ = auto_response_ssst(gtab, dwi_img.get_data(),
+                                         roi_radii=10, fa_thr=0.7)
+        csd_model = ConstrainedSphericalDeconvModel(gtab, response, sh_order=8)
+        csd_fit = csd_model.fit(dwi_img.get_data(), mask=brain_mask)
+        shm = csd_fit.shm_coeff
+
+        prob_dg = ProbabilisticDirectionGetter.from_shcoeff(shm,
+                                                            max_angle=20.,
+                                                            sphere=sphere,
+                                                            pmf_threshold=0.1)
+    elif dataset == "DSI":
+        context.set_progress(message='Processing voxel-wise DSI estimation.')
+        dsmodel = DiffusionSpectrumDeconvModel(gtab)
+        dsfit = dsmodel.fit(dwi_img.get_data())
+        ODFs = dsfit.odf(sphere)
+
+        prob_dg = ProbabilisticDirectionGetter.from_pmf(ODFs,
+                                                        max_angle=20.,
+                                                        sphere=sphere,
+                                                        pmf_threshold=0.1)
+    else:
+        context.set_progress(message='Wrong dataset parameter')
+
 
     ###########################################
     # Compute DIPY Probabilistic Tractography #
     ###########################################
     context.set_progress(message='Processing tractography.')
-    sphere = get_sphere("repulsion724")
-    seed_mask_img = nib.load(inject_file_path)    
-    seeds = utils.seeds_from_mask(seed_mask_img.get_data(), affine, density=5)
-    affine = seed_mask_img.affine
-    stopping_criterion = ThresholdStoppingCriterion(FA, 0.2)
-    prob_dg = ProbabilisticDirectionGetter.from_shcoeff(csd_fit.shm_coeff,
-                                                        max_angle=20.,
-                                                        sphere=sphere)
     streamline_generator = LocalTracking(prob_dg, stopping_criterion, seeds,
                                          affine, step_size=.2, max_cross=1)
     streamlines = Streamlines(streamline_generator)
@@ -194,12 +223,12 @@ def run(context):
     # Upload the data #
     ###################
     context.set_progress(message='Uploading results...')
-    # context.upload_file(fa_file_path, 'fa.nii.gz')
+    #context.upload_file(fa_file_path, 'fa.nii.gz')
     # context.upload_file(fod_file_path, 'fod.nii.gz')
     # context.upload_file(streamlines_file_path, 'streamlines.trk')
     if postprocessing in ["EPFL", "ALL"]:
         context.upload_file(output_epfl_zip_file_path,
-                            'TrackyMcTrackface_EPFL_example.zip')
+                            'TrackyMcTrackface_' + dataset +'_EPFL.zip')
     if postprocessing in ["VUMC", "ALL"]:
         context.upload_file(output_vumc_zip_file_path,
-                            'TrackyMcTrackface_VUMC_example.zip')
+                            'TrackyMcTrackface_' + dataset +'_VUMC.zip')

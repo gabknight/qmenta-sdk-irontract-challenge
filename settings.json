@@ -15,8 +15,15 @@
     {
         "type": "single_choice",
         "id": "postprocessing",
-        "title": "Post processing method",
+        "title": "Post Processing Method: ",
         "options": [["ALL", "ALL"], ["EPFL", "EPFL"],["VUMC", "VUMC"]],
         "default": "ALL"
+    },
+    {
+        "type": "single_choice",
+        "id": "dataset",
+        "title": "Dataset: ",
+        "options": [["HCPL", "HCPL"],["DSI", "DSI"]],
+        "default": "HCPL"
     }
 ]
