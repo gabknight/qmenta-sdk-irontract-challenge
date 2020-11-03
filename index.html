@@ -1,0 +1,46 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"/><title>Unknown </title></head><body>
+<h1 id="qmenta-sdk-tool-example">QMENTA SDK Tool Example</h1>
+<p>Clone this repository to adapt the Dockerfile and tool script and rapidly build <a href="https://platform.qmenta.com/">QMENTA tools</a>. It contains a simple example with all the required files to build and test the tool. If you want to know more about how to use the SDK and all its features, take a look at the <a href="https://docs.qmenta.com/sdk">documentation</a>.</p>
+<blockquote>
+<p>In order to add tools to the <a href="https://platform.qmenta.com/">QMENTA platform</a> you need to have <strong>developer privileges</strong>. If you are interested in this feature, please contact us at info@qmenta.com.</p>
+</blockquote>
+<h2 id="contents">Contents</h2>
+<h3 id="dockerfile">Dockerfile</h3>
+<p>This file contains the sequence of instructions to build a new tool image. You can setup environment paths, run commands during the image building stage and copy files (see <a href="https://docs.docker.com/get-started/part2/">Dockerfile commands</a>).</p>
+<h3 id="tool-script">Tool script</h3>
+<p>The main script that is executed when a tool is launched on the <a href="https://platform.qmenta.com/">QMENTA platform</a>. This script typically performs the actions shown below using the <a href="https://docs.qmenta.com/sdk">QMENTA SDK</a> functions where suitable:</p>
+<ol>
+<li>Download the input data to the container.</li>
+<li>Process it (call any third party tool).</li>
+<li>Upload the results.</li>
+</ol>
+<p>The naive example shown in this repository computes the histogram for a range of intensities in a T1-weighted image. The range of intensities can be specified from outside the tool thanks to the <a href="https://docs.qmenta.com/sdk/6_settings.html#">tool settings specification</a>.</p>
+<p>Feel free to contact us if you have any doubt or request at sdk@qmenta.com! We are happy to hear from you and expand the capabilities of the platform to fit new useful requirements.</p>
+<h3 id="report-template">Report template</h3>
+<p>This tool code uses this HTML template to populate some fields with the patient data and the analysis results to generate a PDF report.</p>
+<h2 id="build-the-tool-image">Build the tool image</h2>
+<p>Use <a href="https://www.docker.com/get-docker">Docker</a> to build a new image using the Dockerfile:
+~~~~
+docker build -t image_name .
+~~~~
+Where <code>image_name</code> should conform to the syntax <code>my_username/my_tool:version</code>.</p>
+<blockquote>
+<p>The first build may take several minutes since it will need to generate the image layer containing the software installation.</p>
+</blockquote>
+<p>Alternatively, take a look at the <code>standalone.Dockerfile</code> to see how to install the SDK in an image based on Ubuntu.</p>
+<h2 id="test-the-tool-locally">Test the tool locally</h2>
+<p>Optionally, the <code>test_tool.py</code> script can be used to locally launch your tool image if you specify the input files and the required values for you settings (see <code>mock_settings_values.json</code>):
+~~~~
+mkdir analysis_output</p>
+<p>python test_tool.py image_name example_data analysis_output \
+    --settings settings.json \
+    --values mock_settings_values.json
+~~~~</p>
+<h2 id="add-the-tool-to-the-qmenta-platform">Add the tool to the <a href="https://platform.qmenta.com/">QMENTA platform</a></h2>
+<p>To add a tool image to your list of tools you will first need to login push it to your <a href="https://hub.docker.com/">Docker Hub</a> registry:
+~~~~
+docker login</p>
+<p>docker push image_name
+~~~~
+To register the tool to the <a href="https://platform.qmenta.com/">QMENTA platform</a>, access the Analysis menu, and go to My Tools. You will need to enter your credentials of your registry, the name and a version number for the tool, its settings configuration file and a description. You can find an example of the settings configuration file in this repository (<code>settings.json</code>).</p>
+</body></html>

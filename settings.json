@@ -1,0 +1,22 @@
+[
+    {
+        "type": "container",
+        "id": "input",
+        "title": "IronTract",
+        "file_filter": "((c_HARDI(m'HARDI') OR (c_HARDI(m'DSI')) AND c_INJECT(m'INJECT') AND c_GRAD<'', any ['gradient_table']>)",
+        "in_filter": [
+            "mri_brain_data"
+        ],
+        "out_filter": [],
+        "anchor": 1,
+        "mandatory": 1,
+        "batch": 1
+    },
+    {
+        "type": "single_choice",
+        "id": "postprocessing",
+        "title": "Post processing method",
+        "options": [["ALL", "ALL"], ["EPFL", "EPFL"],["VUMC", "VUMC"]],
+        "default": "ALL"
+    }
+]

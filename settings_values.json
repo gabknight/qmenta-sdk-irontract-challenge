@@ -1,0 +1,36 @@
+{
+    "input": [
+        {
+            "path": "prep.inject.nii.gz",
+            "modality": "INJECT"
+        },
+        {
+            "path": "prep.dwi.hcpl.nii.gz",
+            "modality": "HARDI"
+        },
+        {
+            "path": "prep.dwi.nii.gz",
+            "modality": "DSI"
+        },
+        {
+            "path": "ADDITIONAL/prep.bvalues.hcpl.txt",
+            "modality": "gradient_table_hcpl_bvalues"
+        },
+        {
+            "path": "ADDITIONAL/prep.gradients.hcpl.txt",
+            "modality": "gradient_table_hcpl_bvecs"
+        },
+        {
+            "path": "ADDITIONAL/prep.bvalues.txt",
+            "modality": "gradient_table_bvalues"
+        },
+        {
+            "path": "ADDITIONAL/prep.gradients.txt",
+            "modality": "gradient_table_bvecs"
+        },
+        {
+            "path": "ADDITIONAL/VUMC_ROIs.nii.gz",
+            "modality": "ROIs"
+        }
+    ]
+}
