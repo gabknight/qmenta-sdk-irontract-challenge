@@ -33,24 +33,27 @@ def run(context):
     postprocessing = settings['postprocessing']
     dataset = settings['dataset']
 
-    hcpl_dwi_file_handle = context.get_files('input', modality='HARDI')[0]
-    hcpl_dwi_file_path = hcpl_dwi_file_handle.download('/root/')
+    if dataset == "HCPL":
+        dwi_file_handle = context.get_files('input', modality='HARDI')[0]
+        dwi_file_path = dwi_file_handle.download('/root/')
 
-    hcpl_bvalues_file_handle = context.get_files(
-        'input', reg_expression='.*prep.bvalues.hcpl.txt')[0]
-    hcpl_bvalues_file_path = hcpl_bvalues_file_handle.download('/root/')
-    hcpl_bvecs_file_handle = context.get_files(
-        'input', reg_expression='.*prep.gradients.hcpl.txt')[0]
-    hcpl_bvecs_file_path = hcpl_bvecs_file_handle.download('/root/')
-
-    dwi_file_handle = context.get_files('input', modality='DSI')[0]
-    dwi_file_path = dwi_file_handle.download('/root/')
-    bvalues_file_handle = context.get_files(
-        'input', reg_expression='.*prep.bvalues.txt')[0]
-    bvalues_file_path = bvalues_file_handle.download('/root/')
-    bvecs_file_handle = context.get_files(
-        'input', reg_expression='.*prep.gradients.txt')[0]
-    bvecs_file_path = bvecs_file_handle.download('/root/')
+        bvalues_file_handle = context.get_files(
+            'input', reg_expression='.*prep.bvalues.hcpl.txt')[0]
+        bvalues_file_path = bvalues_file_handle.download('/root/')
+        bvecs_file_handle = context.get_files(
+            'input', reg_expression='.*prep.gradients.hcpl.txt')[0]
+        bvecs_file_path = bvecs_file_handle.download('/root/')
+    elif dataset == "DSI":
+        dwi_file_handle = context.get_files('input', modality='DSI')[0]
+        dwi_file_path = dwi_file_handle.download('/root/')
+        bvalues_file_handle = context.get_files(
+            'input', reg_expression='.*prep.bvalues.txt')[0]
+        bvalues_file_path = bvalues_file_handle.download('/root/')
+        bvecs_file_handle = context.get_files(
+            'input', reg_expression='.*prep.gradients.txt')[0]
+        bvecs_file_path = bvecs_file_handle.download('/root/')
+    else:
+            context.set_progress(message='Wrong dataset parameter')
 
     inject_file_handle = context.get_files(
         'input', reg_expression='.*prep.inject.nii.gz')[0]
@@ -58,7 +61,7 @@ def run(context):
 
     VUMC_ROIs_file_handle = context.get_files(
         'input', reg_expression='.*VUMC_ROIs.nii.gz')[0]
-    VUMC_ROIs_file_path = inject_file_handle.download('/root/')
+    VUMC_ROIs_file_path = VUMC_ROIs_file_handle.download('/root/')
 
     ###############################
     # _____ _____ _______     __  #
@@ -87,9 +90,9 @@ def run(context):
     #################
     # Load the data #
     #################
-    dwi_img = nib.load(hcpl_dwi_file_path)
-    bvals, bvecs = read_bvals_bvecs(hcpl_bvalues_file_path,
-                                    hcpl_bvecs_file_path)
+    dwi_img = nib.load(dwi_file_path)
+    bvals, bvecs = read_bvals_bvecs(bvalues_file_path,
+                                    bvecs_file_path)
     gtab = gradient_table(bvals, bvecs)
 
     ############################################
@@ -112,7 +115,7 @@ def run(context):
     affine = seed_mask_img.affine
     seeds = utils.random_seeds_from_mask(seed_mask_img.get_data(),
                                          affine,
-                                         seed_count_per_voxel=True
+                                         seed_count_per_voxel=True,
                                          seeds_count=5000)
 
     if dataset == "HCPL":
@@ -133,17 +136,13 @@ def run(context):
                                                             pmf_threshold=0.1)
     elif dataset == "DSI":
         context.set_progress(message='Processing voxel-wise DSI estimation.')
-        dsmodel = DiffusionSpectrumDeconvModel(gtab)
+        dsmodel = DiffusionSpectrumModel(gtab)
         dsfit = dsmodel.fit(dwi_img.get_data())
         ODFs = dsfit.odf(sphere)
-
         prob_dg = ProbabilisticDirectionGetter.from_pmf(ODFs,
                                                         max_angle=20.,
                                                         sphere=sphere,
-                                                        pmf_threshold=0.1)
-    else:
-        context.set_progress(message='Wrong dataset parameter')
-
+                                                        pmf_threshold=0.01)
 
     ###########################################
     # Compute DIPY Probabilistic Tractography #
